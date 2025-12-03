@@ -12,10 +12,11 @@ const ContestantDashboard = () => {
   const navigate = useNavigate();
   const { user, logout, isLoading } = useAuthStore();
   const { currentRoom, fetchRoomDetails, fetchTeams } = useRoomStore();
-  
+
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [currentBid, setCurrentBid] = useState(0);
   const [highestBidder, setHighestBidder] = useState(null);
+  const [lastBidder, setLastBidder] = useState(null); // Track last bidder to prevent consecutive bids
   const [myBidAmount, setMyBidAmount] = useState('');
   const [myTeam, setMyTeam] = useState(null);
   const [teams, setTeams] = useState([]);
@@ -27,7 +28,7 @@ const ContestantDashboard = () => {
 
   const loadRoomData = useCallback(async () => {
     if (!user) return;
-    
+
     await fetchRoomDetails(roomId);
     const teamsResult = await fetchTeams(roomId);
     if (teamsResult.success) {
@@ -45,7 +46,7 @@ const ContestantDashboard = () => {
 
   const connectSocket = useCallback(() => {
     if (!user) return;
-    
+
     socketService.connect();
     socketService.joinRoom(roomId, user.id, user.username, user.role);
 
@@ -65,7 +66,7 @@ const ContestantDashboard = () => {
 
     socketService.on('user-joined', (data) => {
       setMessages(prev => [...prev, { 
-        type: 'system', 
+        type: 'system',
         text: data.message,
         timestamp: new Date()
       }]);
@@ -76,6 +77,7 @@ const ContestantDashboard = () => {
       setCurrentPlayer(data.player);
       setCurrentBid(data.currentBid);
       setHighestBidder(null);
+      setLastBidder(null); // Reset last bidder on new bidding start
       setMyBidAmount('');
       setMessages(prev => [...prev, {
         type: 'system',
@@ -87,6 +89,7 @@ const ContestantDashboard = () => {
     socketService.on('new-bid', (data) => {
       setCurrentBid(data.bidAmount);
       setHighestBidder(data.teamName);
+      setLastBidder(data.teamName); // Update last bidder here
       setMessages(prev => [...prev, {
         type: 'bid',
         text: `${data.teamName} bid ₹${data.bidAmount} Cr`,
@@ -96,7 +99,7 @@ const ContestantDashboard = () => {
 
     socketService.on('player-sold', (data) => {
       console.log('Player sold event received:', data);
-      
+
       setMessages(prev => [...prev, {
         type: 'sold',
         text: `${data.player.name} SOLD to ${data.teamName} for ₹${data.soldPrice} Cr!`,
@@ -105,7 +108,8 @@ const ContestantDashboard = () => {
       setCurrentPlayer(null);
       setCurrentBid(0);
       setHighestBidder(null);
-      
+      setLastBidder(null); // Reset last bidder after player sold
+
       if (data.teams) {
         console.log('Updating teams from player-sold:', data.teams);
         setTeams(data.teams);
@@ -147,6 +151,7 @@ const ContestantDashboard = () => {
       setCurrentPlayer(null);
       setCurrentBid(0);
       setHighestBidder(null);
+      setLastBidder(null); // Reset last bidder on unsold player
     });
 
     socketService.on('new-message', (data) => {
@@ -163,12 +168,12 @@ const ContestantDashboard = () => {
     if (isLoading) {
       return;
     }
-    
+
     if (!user) {
       navigate('/login');
       return;
     }
-    
+
     loadRoomData();
     connectSocket();
 
@@ -183,9 +188,15 @@ const ContestantDashboard = () => {
 
   const placeBid = () => {
     const bidAmount = parseFloat(myBidAmount);
-    
+
     if (!bidAmount || bidAmount <= currentBid) {
       alert('Bid must be higher than current bid');
+      return;
+    }
+
+    // Prevent consecutive bids by the same team
+    if (lastBidder === myTeam?.teamName) {
+      alert('You must wait for another contestant to bid before bidding again.');
       return;
     }
 
@@ -201,6 +212,13 @@ const ContestantDashboard = () => {
 
   const quickBid = (increment) => {
     const newBid = currentBid + increment;
+
+    // Prevent consecutive bids by the same team
+    if (lastBidder === myTeam?.teamName) {
+      alert('You must wait for another contestant to bid before bidding again.');
+      return;
+    }
+
     const purseRemaining = myTeam?.purseRemaining ?? (currentRoom?.rules?.totalPurse || 100);
     if (newBid > purseRemaining) {
       alert('Insufficient purse remaining');
@@ -388,7 +406,7 @@ const ContestantDashboard = () => {
             {currentPlayer ? (
               <div className="bg-gradient-to-br from-orange-500 to-pink-500 rounded-xl shadow-lg p-4 sm:p-5 text-white">
                 <h2 className="text-base sm:text-lg font-bold mb-3">Current Player</h2>
-                
+
                 <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3 sm:p-4 mb-3">
                   <h3 className="text-xl sm:text-2xl font-bold mb-2">{currentPlayer.name}</h3>
                   <div className="flex gap-2 mb-3 flex-wrap">
@@ -424,7 +442,7 @@ const ContestantDashboard = () => {
                       )}
                     </div>
                   )}
-                  
+
                   <div className="grid grid-cols-2 gap-3 mb-3">
                     <div>
                       <p className="text-white/70 text-xs">Base Price</p>
@@ -464,7 +482,7 @@ const ContestantDashboard = () => {
                       Bid
                     </button>
                   </div>
-                  
+
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => quickBid(0.5)}
@@ -502,7 +520,7 @@ const ContestantDashboard = () => {
               <div className="p-3 border-b border-gray-200">
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Live Feed</h2>
               </div>
-              
+
               <div className="h-[150px] sm:h-[200px] overflow-y-auto p-3 space-y-2">
                 {messages.map((msg, index) => (
                   <div key={index} className={`${
@@ -567,7 +585,7 @@ const ContestantDashboard = () => {
                   <X size={20} />
                 </button>
               </div>
-              
+
               {/* Team Stats */}
               <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4">
                 <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 text-center">
@@ -600,7 +618,7 @@ const ContestantDashboard = () => {
                             <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{player.role}</span>
                             <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded">{player.country}</span>
                           </div>
-                          
+
                           {player.stats && (
                             <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 text-xs text-gray-600">
                               {player.stats.matches > 0 && <span>M: {player.stats.matches}</span>}
