@@ -1,7 +1,8 @@
 // frontend/src/services/api.js
 import axios from 'axios';
 
-const API_URL = '/api'; // This will use the proxy configured in package.json
+// const API_URL = '/api'; // This will use the proxy configured in package.json
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 // Create axios instance
 const api = axios.create({
