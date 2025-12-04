@@ -281,16 +281,17 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
           </div>
         )}
 
-        {/* Main Content – stacked on mobile, per-column scroll on lg */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <div className="flex flex-col gap-6 lg:flex-row lg:gap-4">
-            {/* Playing XI Slots */}
-            <div className="w-full lg:w-1/2 lg:pr-2 lg:max-h-[60vh] lg:overflow-y-auto">
-              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden p-4 sm:p-6">
+          {/* Mobile: Tabbed scrollable sections */}
+          <div className="block sm:hidden flex flex-col h-full max-h-[calc(100vh-300px)]">
+            {/* Playing XI Tab */}
+            <div className="flex-1 min-h-0 overflow-y-auto mb-4 pb-4 -mr-4 pr-4">
+              <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2 sticky top-0 bg-white pt-4 pb-2 z-10">
                 <Star size={16} className="text-purple-600" />
                 Playing XI Positions
               </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2 sm:gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {playingXI.map((playerId, index) => {
                   const player = getPlayerById(playerId);
                   const isC = captain === playerId;
@@ -300,7 +301,7 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                   return (
                     <div
                       key={`slot-${index}`}
-                      className={`group relative p-3 sm:p-4 rounded-lg border-2 min-h-[100px] sm:min-h-[120px] transition-all flex flex-col ${
+                      className={`group relative p-3 rounded-lg border-2 min-h-[100px] transition-all flex flex-col ${
                         playerId
                           ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-500 shadow-md'
                           : 'bg-gray-50 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-25'
@@ -331,13 +332,13 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                             </button>
                           </div>
 
-                          <div className="flex flex-col items-center text-center mb-2 sm:mb-3 flex-1">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mb-2">
-                              <span className="text-white font-bold text-sm sm:text-base">
+                          <div className="flex flex-col items-center text-center mb-2 flex-1">
+                            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mb-2">
+                              <span className="text-white font-bold text-sm">
                                 {index + 1}
                               </span>
                             </div>
-                            <p className="font-semibold text-gray-900 text-xs sm:text-sm truncate max-w-[120px]">
+                            <p className="font-semibold text-gray-900 text-xs truncate max-w-[120px]">
                               {player?.name}
                             </p>
                             <p className="text-xs text-gray-600">
@@ -350,14 +351,14 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                             )}
                           </div>
 
-                          <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 mt-auto">
+                          <div className="flex flex-col gap-1 mt-auto">
                             <button
                               onClick={() => setCaptain(playerId)}
-                              className={`flex items-center justify-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                              className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all w-full ${
                                 isC
                                   ? 'bg-yellow-500 text-white shadow-sm'
                                   : 'bg-gray-200 text-gray-700 hover:bg-yellow-100'
-                              } min-h-[32px]`}
+                              }`}
                             >
                               <Star size={10} />
                               {isC ? 'Captain' : 'C'}
@@ -365,11 +366,216 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
 
                             <button
                               onClick={() => setViceCaptain(playerId)}
-                              className={`flex items-center justify-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                              className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-all w-full ${
                                 isVC
                                   ? 'bg-orange-500 text-white shadow-sm'
                                   : 'bg-gray-200 text-gray-700 hover:bg-orange-100'
-                              } min-h-[32px]`}
+                              }`}
+                            >
+                              <Star size={10} />
+                              {isVC ? 'VC' : 'VC'}
+                            </button>
+                          </div>
+
+                          {player?.role === 'Wicket-Keeper' && (
+                            <button
+                              onClick={() => setWicketKeeper(playerId)}
+                              className={`mt-2 flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all w-full ${
+                                isWK
+                                  ? 'bg-blue-500 text-white shadow-sm'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-blue-100'
+                              }`}
+                            >
+                              <Shield size={12} />
+                              {isWK ? 'Keeper' : 'Keeper'}
+                            </button>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                          <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center mb-2">
+                            <Check size={18} className="opacity-50" />
+                          </div>
+                          <p className="text-xs font-medium">
+                            Drop player here
+                          </p>
+                          <p className="text-xs">Slot {index + 1}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Available Players Tab */}
+            <div className="flex-1 min-h-0 overflow-y-auto -mr-4 pr-4">
+              <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2 sticky top-0 bg-white pt-4 pb-2 z-10">
+                Available Players
+              </h3>
+              <div className="space-y-2">
+                {myTeam.players.map((player) => {
+                  const playerId = player._id || player;
+                  if (isInXI(playerId)) return null;
+
+                  return (
+                    <div
+                      key={playerId}
+                      draggable
+                      onDragStart={(e) =>
+                        handleDragStart(e, playerId)
+                      }
+                      className={`p-3 rounded-lg border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-md min-h-[80px] ${
+                        isSelected(playerId)
+                          ? 'bg-green-50 border-green-500'
+                          : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => togglePlayer(playerId)}
+                    >
+                      <div className="flex flex-col gap-2 h-full">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-gray-900 text-sm flex items-center gap-1 mb-1 truncate">
+                            {player.name}
+                            {isForeign(player) && (
+                              <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                Foreign
+                              </span>
+                            )}
+                          </h4>
+                          <div className="flex flex-wrap gap-1 text-xs">
+                            <span className="bg-gray-200 px-2 py-0.5 rounded">
+                              {player.role}
+                            </span>
+                            <span className="bg-gray-200 px-2 py-0.5 rounded truncate max-w-[80px]">
+                              {player.country}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right mt-1">
+                          <p className="text-sm font-bold text-green-600">
+                            ₹{player.soldPrice} Cr
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
+                        <span className="text-xs text-gray-500">
+                          Drag to add →
+                        </span>
+                        <div
+                          className={`w-7 h-7 rounded border-2 flex items-center justify-center ${
+                            isSelected(playerId)
+                              ? 'bg-green-500 border-green-500'
+                              : 'border-gray-300 hover:border-green-400'
+                          }`}
+                        >
+                          {isSelected(playerId) ? (
+                            <Check
+                              size={14}
+                              className="text-white"
+                            />
+                          ) : (
+                            <span className="text-xs font-bold text-gray-400">
+                              +
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Desktop: Side-by-side layout */}
+          <div className="hidden sm:flex flex-row gap-4 h-full max-h-[calc(100vh-300px)]">
+            {/* Playing XI Slots */}
+            <div className="w-1/2 pr-2 max-h-full overflow-y-auto">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2 sticky top-0 bg-white pt-4 pb-2 z-10">
+                <Star size={16} className="text-purple-600" />
+                Playing XI Positions
+              </h3>
+              <div className="grid grid-cols-1 gap-3">
+                {playingXI.map((playerId, index) => {
+                  const player = getPlayerById(playerId);
+                  const isC = captain === playerId;
+                  const isVC = viceCaptain === playerId;
+                  const isWK = wicketKeeper === playerId;
+
+                  return (
+                    <div
+                      key={`slot-${index}`}
+                      className={`group relative p-4 rounded-lg border-2 min-h-[120px] transition-all flex flex-col ${
+                        playerId
+                          ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-500 shadow-md'
+                          : 'bg-gray-50 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-25'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, index)}
+                    >
+                      {/* Same content as mobile but with sm sizes restored */}
+                      {playerId ? (
+                        <>
+                          <div className="absolute top-2 right-2 flex gap-1">
+                            <div
+                              className="p-1 cursor-move opacity-50 hover:opacity-100 transition-all"
+                              draggable
+                              onDragStart={(e) =>
+                                handleDragStart(e, playerId)
+                              }
+                            >
+                              <Move
+                                size={14}
+                                className="text-gray-500 hover:text-gray-700"
+                              />
+                            </div>
+                            <button
+                              className="p-1 rounded-full bg-red-500/10 hover:bg-red-500/20 min-w-[28px] h-[28px] flex items-center justify-center"
+                              onClick={() => removeFromXI(index)}
+                            >
+                              <X size={12} className="text-red-500" />
+                            </button>
+                          </div>
+
+                          <div className="flex flex-col items-center text-center mb-3 flex-1">
+                            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mb-2">
+                              <span className="text-white font-bold text-base">
+                                {index + 1}
+                              </span>
+                            </div>
+                            <p className="font-semibold text-gray-900 text-sm truncate max-w-[120px]">
+                              {player?.name}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {player?.role}
+                            </p>
+                            {player?.soldPrice && (
+                              <p className="text-xs text-green-600 font-semibold">
+                                ₹{player.soldPrice} Cr
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex flex-row gap-2 mt-auto">
+                            <button
+                              onClick={() => setCaptain(playerId)}
+                              className={`flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-1 min-h-[32px] ${
+                                isC
+                                  ? 'bg-yellow-500 text-white shadow-sm'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-yellow-100'
+                              }`}
+                            >
+                              <Star size={10} />
+                              {isC ? 'Captain' : 'C'}
+                            </button>
+
+                            <button
+                              onClick={() => setViceCaptain(playerId)}
+                              className={`flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex-1 min-h-[32px] ${
+                                isVC
+                                  ? 'bg-orange-500 text-white shadow-sm'
+                                  : 'bg-gray-200 text-gray-700 hover:bg-orange-100'
+                              }`}
                             >
                               <Star size={10} />
                               {isVC ? 'VC' : 'VC'}
@@ -392,10 +598,10 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                         </>
                       ) : (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-full flex items-center justify-center mb-2">
+                          <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-2">
                             <Check size={18} className="opacity-50" />
                           </div>
-                          <p className="text-xs sm:text-sm font-medium">
+                          <p className="text-sm font-medium">
                             Drop player here
                           </p>
                           <p className="text-xs">Slot {index + 1}</p>
@@ -408,11 +614,11 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
             </div>
 
             {/* Available Players */}
-            <div className="w-full lg:w-1/2 lg:pl-2 lg:max-h-[60vh] lg:overflow-y-auto">
-              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">
+            <div className="w-1/2 pl-2 max-h-full overflow-y-auto">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 sticky top-0 bg-white pt-4 pb-2 z-10">
                 Available Players
               </h3>
-              <div className="space-y-2 sm:space-y-3">
+              <div className="space-y-3">
                 {myTeam.players.map((player) => {
                   const playerId = player._id || player;
                   if (isInXI(playerId)) return null;
@@ -424,16 +630,16 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                       onDragStart={(e) =>
                         handleDragStart(e, playerId)
                       }
-                      className={`p-3 sm:p-4 rounded-lg border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-md min-h-[80px] ${
+                      className={`p-4 rounded-lg border-2 cursor-grab active:cursor-grabbing transition-all hover:shadow-md min-h-[80px] ${
                         isSelected(playerId)
                           ? 'bg-green-50 border-green-500'
                           : 'bg-gray-50 border-gray-200 hover:border-gray-300'
                       }`}
                       onClick={() => togglePlayer(playerId)}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 h-full">
+                      <div className="flex flex-row items-start justify-between gap-4 h-full">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 text-sm sm:text-base flex items-center gap-1 mb-1 truncate">
+                          <h4 className="font-semibold text-gray-900 text-base flex items-center gap-1 mb-1 truncate">
                             {player.name}
                             {isForeign(player) && (
                               <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded whitespace-nowrap">
@@ -450,7 +656,7 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                             </span>
                           </div>
                         </div>
-                        <div className="text-right sm:ml-4 mt-1 sm:mt-0">
+                        <div className="text-right mt-1 flex-shrink-0">
                           <p className="text-sm font-bold text-green-600">
                             ₹{player.soldPrice} Cr
                           </p>
