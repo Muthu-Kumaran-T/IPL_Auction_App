@@ -281,11 +281,11 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
           </div>
         )}
 
-        {/* Main Content – both columns scrollable */}
-        <div className="flex-1 overflow-hidden p-4 sm:p-6">
-          <div className="h-full flex flex-col lg:flex-row gap-4">
+        {/* Main Content – stacked on mobile, per-column scroll on lg */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="flex flex-col gap-6 lg:flex-row lg:gap-4">
             {/* Playing XI Slots */}
-            <div className="lg:w-1/2 lg:pr-2 h-full overflow-y-auto max-h-[60vh]">
+            <div className="w-full lg:w-1/2 lg:pr-2 lg:max-h-[60vh] lg:overflow-y-auto">
               <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4 flex items-center gap-2">
                 <Star size={16} className="text-purple-600" />
                 Playing XI Positions
@@ -310,7 +310,6 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                     >
                       {playerId ? (
                         <>
-                          {/* Drag handle & Remove */}
                           <div className="absolute top-2 right-2 flex gap-1">
                             <div
                               className="p-1 cursor-move opacity-50 hover:opacity-100 transition-all"
@@ -332,7 +331,6 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                             </button>
                           </div>
 
-                          {/* Player Info */}
                           <div className="flex flex-col items-center text-center mb-2 sm:mb-3 flex-1">
                             <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center mb-2">
                               <span className="text-white font-bold text-sm sm:text-base">
@@ -352,7 +350,6 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
                             )}
                           </div>
 
-                          {/* Role Buttons */}
                           <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 mt-auto">
                             <button
                               onClick={() => setCaptain(playerId)}
@@ -411,11 +408,11 @@ const PlayingXIModal = ({ isOpen, onClose, myTeam, roomId, onSuccess }) => {
             </div>
 
             {/* Available Players */}
-            <div className="lg:w-1/2 lg:pl-2 h-full overflow-y-auto max-h-[60vh]">
+            <div className="w-full lg:w-1/2 lg:pl-2 lg:max-h-[60vh] lg:overflow-y-auto">
               <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 sm:mb-4">
                 Available Players
               </h3>
-              <div className="space-y-2 sm:space-y-3 max-h-full">
+              <div className="space-y-2 sm:space-y-3">
                 {myTeam.players.map((player) => {
                   const playerId = player._id || player;
                   if (isInXI(playerId)) return null;
