@@ -6,6 +6,7 @@ import useAuthStore from '../store/authStore';
 import useRoomStore from '../store/roomStore';
 import socketService from '../services/socket';
 import PlayingXIModal from '../components/PlayingXIModal';
+import PlayingXIFormation from '../components/PlayingXIFormation';
 
 const ContestantDashboard = () => {
   const { roomId } = useParams();
@@ -16,7 +17,7 @@ const ContestantDashboard = () => {
   const [currentPlayer, setCurrentPlayer] = useState(null);
   const [currentBid, setCurrentBid] = useState(0);
   const [highestBidder, setHighestBidder] = useState(null);
-  const [lastBidder, setLastBidder] = useState(null); // Track last bidder to prevent consecutive bids
+  const [lastBidder, setLastBidder] = useState(null);
   const [myBidAmount, setMyBidAmount] = useState('');
   const [myTeam, setMyTeam] = useState(null);
   const [teams, setTeams] = useState([]);
@@ -24,6 +25,7 @@ const ContestantDashboard = () => {
   const [newMessage, setNewMessage] = useState('');
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [showPlayingXIModal, setShowPlayingXIModal] = useState(false);
+  const [showFormation, setShowFormation] = useState(false);
   const chatEndRef = useRef(null);
 
   const loadRoomData = useCallback(async () => {
@@ -77,7 +79,7 @@ const ContestantDashboard = () => {
       setCurrentPlayer(data.player);
       setCurrentBid(data.currentBid);
       setHighestBidder(null);
-      setLastBidder(null); // Reset last bidder on new bidding start
+      setLastBidder(null);
       setMyBidAmount('');
       setMessages(prev => [...prev, {
         type: 'system',
@@ -89,7 +91,7 @@ const ContestantDashboard = () => {
     socketService.on('new-bid', (data) => {
       setCurrentBid(data.bidAmount);
       setHighestBidder(data.teamName);
-      setLastBidder(data.teamName); // Update last bidder here
+      setLastBidder(data.teamName);
       setMessages(prev => [...prev, {
         type: 'bid',
         text: `${data.teamName} bid ₹${data.bidAmount} Cr`,
@@ -108,7 +110,7 @@ const ContestantDashboard = () => {
       setCurrentPlayer(null);
       setCurrentBid(0);
       setHighestBidder(null);
-      setLastBidder(null); // Reset last bidder after player sold
+      setLastBidder(null);
 
       if (data.teams) {
         console.log('Updating teams from player-sold:', data.teams);
@@ -151,7 +153,7 @@ const ContestantDashboard = () => {
       setCurrentPlayer(null);
       setCurrentBid(0);
       setHighestBidder(null);
-      setLastBidder(null); // Reset last bidder on unsold player
+      setLastBidder(null);
     });
 
     socketService.on('new-message', (data) => {
@@ -194,7 +196,6 @@ const ContestantDashboard = () => {
       return;
     }
 
-    // Prevent consecutive bids by the same team
     if (lastBidder === myTeam?.teamName) {
       alert('You must wait for another contestant to bid before bidding again.');
       return;
@@ -213,7 +214,6 @@ const ContestantDashboard = () => {
   const quickBid = (increment) => {
     const newBid = currentBid + increment;
 
-    // Prevent consecutive bids by the same team
     if (lastBidder === myTeam?.teamName) {
       alert('You must wait for another contestant to bid before bidding again.');
       return;
@@ -578,12 +578,22 @@ const ContestantDashboard = () => {
                   </h2>
                   <p className="text-blue-100 text-xs mt-1">Squad Overview</p>
                 </div>
-                <button
-                  onClick={() => setSelectedTeam(null)}
-                  className="p-2 hover:bg-white/20 rounded-lg transition-colors min-w-[44px] h-[44px] flex items-center justify-center ml-2"
-                >
-                  <X size={20} />
-                </button>
+                <div className="flex items-center gap-2 ml-2">
+                  {isMyTeam(selectedTeam) && selectedTeam.playingXI && (
+                    <button
+                      onClick={() => setShowFormation(!showFormation)}
+                      className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-xs sm:text-sm font-semibold transition-colors"
+                    >
+                      {showFormation ? '📋 List View' : '⚽ Formation'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSelectedTeam(null)}
+                    className="p-2 hover:bg-white/20 rounded-lg transition-colors min-w-[44px] h-[44px] flex items-center justify-center"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
               {/* Team Stats */}
@@ -607,39 +617,46 @@ const ContestantDashboard = () => {
 
             {/* Modal Content */}
             <div className="p-3 sm:p-4 overflow-y-auto max-h-[calc(95vh-200px)] sm:max-h-[calc(85vh-200px)]">
-              {selectedTeam.players && selectedTeam.players.length > 0 ? (
-                <div className="space-y-2">
-                  {selectedTeam.players.map((player, index) => (
-                    <div key={player._id || index} className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
-                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{player.name}</h3>
-                          <div className="flex gap-2 mt-1 text-xs flex-wrap">
-                            <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{player.role}</span>
-                            <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded">{player.country}</span>
-                          </div>
-
-                          {player.stats && (
-                            <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 text-xs text-gray-600">
-                              {player.stats.matches > 0 && <span>M: {player.stats.matches}</span>}
-                              {player.stats.runs > 0 && <span>R: {player.stats.runs}</span>}
-                              {player.stats.wickets > 0 && <span>W: {player.stats.wickets}</span>}
+              {showFormation && isMyTeam(selectedTeam) && selectedTeam.playingXI ? (
+                <PlayingXIFormation
+                  playingXI={selectedTeam.playingXI}
+                  players={selectedTeam.players}
+                  teamName={selectedTeam.teamName}
+                />
+              ) : (
+                selectedTeam.players && selectedTeam.players.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedTeam.players.map((player, index) => (
+                      <div key={player._id || index} className="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{player.name}</h3>
+                            <div className="flex gap-2 mt-1 text-xs flex-wrap">
+                              <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{player.role}</span>
+                              <span className="bg-gray-200 text-gray-700 px-2 py-0.5 rounded">{player.country}</span>
                             </div>
-                          )}
-                        </div>
-                        <div className="text-right sm:ml-3">
-                          <p className="text-xs text-gray-500">Bought</p>
-                          <p className="text-base sm:text-lg font-bold text-green-600">₹{player.soldPrice} Cr</p>
+                            {player.stats && (
+                              <div className="flex flex-wrap gap-2 sm:gap-3 mt-2 text-xs text-gray-600">
+                                {player.stats.matches > 0 && <span>M: {player.stats.matches}</span>}
+                                {player.stats.runs > 0 && <span>R: {player.stats.runs}</span>}
+                                {player.stats.wickets > 0 && <span>W: {player.stats.wickets}</span>}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right sm:ml-3">
+                            <p className="text-xs text-gray-500">Bought</p>
+                            <p className="text-base sm:text-lg font-bold text-green-600">₹{player.soldPrice} Cr</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Users size={40} className="mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-500 text-sm">No players yet</p>
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users size={40} className="mx-auto text-gray-300 mb-3" />
+                    <p className="text-gray-500 text-sm">No players yet</p>
+                  </div>
+                )
               )}
             </div>
 
