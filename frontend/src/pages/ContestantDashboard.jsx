@@ -18,7 +18,6 @@ const ContestantDashboard = () => {
   const [currentBid, setCurrentBid] = useState(0);
   const [highestBidder, setHighestBidder] = useState(null);
   const [lastBidder, setLastBidder] = useState(null);
-  const [myBidAmount, setMyBidAmount] = useState('');
   const [myTeam, setMyTeam] = useState(null);
   const [teams, setTeams] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -28,23 +27,20 @@ const ContestantDashboard = () => {
   const [showFormation, setShowFormation] = useState(false);
   const chatEndRef = useRef(null);
 
-  const loadRoomData = useCallback(async () => {
-    if (!user) return;
+  // Determine bid increment based on base price
+  const getBidIncrement = (basePrice) => {
+    if (basePrice >= 2) return 0.5;
+    if (basePrice >= 1) return 0.25;
+    return 0.20;
+  };
 
+  const loadRoomData = useCallback(async () => {
     await fetchRoomDetails(roomId);
     const teamsResult = await fetchTeams(roomId);
     if (teamsResult.success) {
       setTeams(teamsResult.teams);
-      const team = teamsResult.teams.find(t => {
-        const teamUserId = t.userId?._id || t.userId;
-        return teamUserId === user.id;
-      });
-      if (team) {
-        console.log('My team loaded:', team);
-        setMyTeam(team);
-      }
     }
-  }, [user, roomId, fetchRoomDetails, fetchTeams]);
+  }, [roomId, fetchRoomDetails, fetchTeams]);
 
   const connectSocket = useCallback(() => {
     if (!user) return;
@@ -57,8 +53,8 @@ const ContestantDashboard = () => {
       if (room && room.teams) {
         setTeams(room.teams);
         const team = room.teams.find(t => {
-          const teamUserId = t.userId?._id || t.userId;
-          return teamUserId === user.id;
+          const teamUserId = (t.userId?._id || t.userId)?.toString();
+          return teamUserId === user.id?.toString();
         });
         if (team) {
           setMyTeam(team);
@@ -67,7 +63,7 @@ const ContestantDashboard = () => {
     });
 
     socketService.on('user-joined', (data) => {
-      setMessages(prev => [...prev, { 
+      setMessages(prev => [...prev, {
         type: 'system',
         text: data.message,
         timestamp: new Date()
@@ -80,10 +76,9 @@ const ContestantDashboard = () => {
       setCurrentBid(data.currentBid);
       setHighestBidder(null);
       setLastBidder(null);
-      setMyBidAmount('');
       setMessages(prev => [...prev, {
         type: 'system',
-        text: `Bidding started for ${data.player.name}`,
+        text: `Bidding started for ${data.player.name} — Base price ₹${data.currentBid} Cr`,
         timestamp: new Date()
       }]);
     });
@@ -95,6 +90,16 @@ const ContestantDashboard = () => {
       setMessages(prev => [...prev, {
         type: 'bid',
         text: `${data.teamName} bid ₹${data.bidAmount} Cr`,
+        timestamp: new Date()
+      }]);
+    });
+
+    socketService.on('update-base-price', (data) => {
+      setCurrentPlayer(prev => prev ? { ...prev, basePrice: data.newBasePrice } : prev);
+      setCurrentBid(data.newBasePrice);
+      setMessages(prev => [...prev, {
+        type: 'system',
+        text: `Base price updated to ₹${data.newBasePrice} Cr`,
         timestamp: new Date()
       }]);
     });
@@ -116,8 +121,8 @@ const ContestantDashboard = () => {
         console.log('Updating teams from player-sold:', data.teams);
         setTeams(data.teams);
         const updatedTeam = data.teams.find(t => {
-          const teamUserId = t.userId?._id || t.userId;
-          return teamUserId === user.id;
+          const teamUserId = (t.userId?._id || t.userId)?.toString();
+          return teamUserId === user.id?.toString();
         });
         console.log('My updated team:', updatedTeam);
         if (updatedTeam) {
@@ -134,8 +139,8 @@ const ContestantDashboard = () => {
       if (data.teams) {
         setTeams(data.teams);
         const updatedTeam = data.teams.find(t => {
-          const teamUserId = t.userId?._id || t.userId;
-          return teamUserId === user.id;
+          const teamUserId = (t.userId?._id || t.userId)?.toString();
+          return teamUserId === user.id?.toString();
         });
         console.log('My team after teams-updated:', updatedTeam);
         if (updatedTeam) {
@@ -176,7 +181,10 @@ const ContestantDashboard = () => {
       return;
     }
 
-    loadRoomData();
+    loadRoomData().then(() => {
+      // After room data is loaded, find my team from the fetched teams
+      // This is done in room-state socket event too, but we need it on initial load
+    });
     connectSocket();
 
     return () => {
@@ -184,17 +192,26 @@ const ContestantDashboard = () => {
     };
   }, [roomId, user, isLoading, navigate, loadRoomData, connectSocket]);
 
+  // Separate effect: once teams are loaded and user is ready, find my team
+  useEffect(() => {
+    if (user && teams.length > 0 && !myTeam) {
+      const team = teams.find(t => {
+        const teamUserId = (t.userId?._id || t.userId)?.toString();
+        return teamUserId === user.id?.toString();
+      });
+      if (team) {
+        console.log('My team found from teams state:', team);
+        setMyTeam(team);
+      }
+    }
+  }, [user, teams, myTeam]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const placeBid = () => {
-    const bidAmount = parseFloat(myBidAmount);
-
-    if (!bidAmount || bidAmount <= currentBid) {
-      alert('Bid must be higher than current bid');
-      return;
-    }
+  const placeBid = (bidAmount) => {
+    if (!currentPlayer || !myTeam) return;
 
     if (lastBidder === myTeam?.teamName) {
       alert('You must wait for another contestant to bid before bidding again.');
@@ -207,24 +224,23 @@ const ContestantDashboard = () => {
       return;
     }
 
-    socketService.placeBid(roomId, currentPlayer.id, bidAmount, myTeam.teamName, user.id);
-    setMyBidAmount('');
+    socketService.placeBid(roomId, currentPlayer._id || currentPlayer.id, bidAmount, myTeam.teamName, user.id);
   };
 
-  const quickBid = (increment) => {
-    const newBid = currentBid + increment;
-
-    if (lastBidder === myTeam?.teamName) {
-      alert('You must wait for another contestant to bid before bidding again.');
+  // Place first bid at base price
+  const placeBaseBid = () => {
+    if (currentBid > 0 && highestBidder) {
+      alert('Bidding has already started. Use the increment button.');
       return;
     }
+    placeBid(currentPlayer.basePrice);
+  };
 
-    const purseRemaining = myTeam?.purseRemaining ?? (currentRoom?.rules?.totalPurse || 100);
-    if (newBid > purseRemaining) {
-      alert('Insufficient purse remaining');
-      return;
-    }
-    socketService.placeBid(roomId, currentPlayer.id, newBid, myTeam.teamName, user.id);
+  // Increment current bid by the rule-based amount
+  const placeIncrementBid = () => {
+    const increment = getBidIncrement(currentPlayer.basePrice);
+    const newBid = parseFloat((currentBid + increment).toFixed(2));
+    placeBid(newBid);
   };
 
   const sendMessage = () => {
@@ -252,6 +268,17 @@ const ContestantDashboard = () => {
     return currentRoom?.rules?.totalPurse || 100;
   };
 
+  const isBiddingActive = currentPlayer !== null;
+  const hasNoBidsYet = isBiddingActive && !highestBidder;
+  const increment = currentPlayer ? getBidIncrement(currentPlayer.basePrice) : 0;
+  const nextBidAmount = currentPlayer
+    ? hasNoBidsYet
+      ? currentPlayer.basePrice
+      : parseFloat((currentBid + increment).toFixed(2))
+    : 0;
+  const purseRemaining = getPurseRemaining();
+  const canAffordBid = nextBidAmount <= purseRemaining;
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -265,7 +292,7 @@ const ContestantDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header - Mobile Responsive */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
@@ -316,7 +343,7 @@ const ContestantDashboard = () => {
               </div>
             </div>
 
-            {/* My Squad - COMPACT */}
+            {/* My Squad */}
             <div className="bg-white rounded-xl shadow p-3 sm:p-4">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">My Squad</h2>
@@ -368,7 +395,7 @@ const ContestantDashboard = () => {
               </div>
             </div>
 
-            {/* Other Teams - COMPACT */}
+            {/* Other Teams */}
             <div className="bg-white rounded-xl shadow p-3 sm:p-4">
               <h2 className="text-sm sm:text-base font-bold text-gray-900 mb-2 flex items-center gap-1">
                 <Users size={14} />
@@ -450,60 +477,56 @@ const ContestantDashboard = () => {
                     </div>
                     <div>
                       <p className="text-white/70 text-xs">Current Bid</p>
-                      <p className="text-lg sm:text-xl font-bold">₹{currentBid} Cr</p>
+                      <p className="text-lg sm:text-xl font-bold">
+                        {highestBidder ? `₹${currentBid} Cr` : '—'}
+                      </p>
                     </div>
                   </div>
 
-                  {highestBidder && (
+                  {/* Bidding status */}
+                  {highestBidder ? (
                     <div className={`rounded-lg p-2 ${highestBidder === myTeam?.teamName ? 'bg-green-500/40' : 'bg-red-500/40'}`}>
                       <p className="text-xs text-white/90">
                         {highestBidder === myTeam?.teamName ? 'You are the highest bidder! 🎉' : `Highest: ${highestBidder}`}
                       </p>
                     </div>
+                  ) : (
+                    <div className="bg-white/10 rounded-lg p-2">
+                      <p className="text-xs text-white/80">⏳ No bids yet — be the first!</p>
+                    </div>
                   )}
                 </div>
 
-                {/* Bidding Controls */}
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="number"
-                      value={myBidAmount}
-                      onChange={(e) => setMyBidAmount(e.target.value)}
-                      placeholder="Enter bid"
-                      className="flex-1 px-3 py-2 rounded-lg text-gray-900 font-semibold text-sm min-h-[44px]"
-                      step="0.5"
-                    />
-                    <button
-                      onClick={placeBid}
-                      className="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-1 text-sm min-h-[44px] min-w-[80px]"
-                    >
-                      <TrendingUp size={16} />
-                      Bid
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => quickBid(0.5)}
-                      className="bg-white/20 hover:bg-white/30 text-white font-semibold py-2 rounded-lg transition-colors text-sm min-h-[44px]"
-                    >
-                      +₹0.5
-                    </button>
-                    <button
-                      onClick={() => quickBid(1)}
-                      className="bg-white/20 hover:bg-white/30 text-white font-semibold py-2 rounded-lg transition-colors text-sm min-h-[44px]"
-                    >
-                      +₹1
-                    </button>
-                    <button
-                      onClick={() => quickBid(2)}
-                      className="bg-white/20 hover:bg-white/30 text-white font-semibold py-2 rounded-lg transition-colors text-sm min-h-[44px]"
-                    >
-                      +₹2
-                    </button>
-                  </div>
+                {/* Bid increment info */}
+                <div className="bg-white/10 rounded-lg p-2 mb-3 flex items-center justify-between">
+                  <p className="text-xs text-white/80">
+                    Increment: <span className="font-bold text-white">+₹{increment} Cr</span>
+                  </p>
+                  <p className="text-xs text-white/80">
+                    Your bid: <span className="font-bold text-white">₹{nextBidAmount} Cr</span>
+                  </p>
                 </div>
+
+                {/* Bidding Controls — single button only */}
+                {lastBidder === myTeam?.teamName ? (
+                  <div className="bg-yellow-500/30 rounded-lg p-3 text-center">
+                    <p className="text-sm font-semibold">⏸ You're the highest bidder</p>
+                    <p className="text-xs text-white/80 mt-1">Wait for another team to bid</p>
+                  </div>
+                ) : !canAffordBid ? (
+                  <div className="bg-red-500/30 rounded-lg p-3 text-center">
+                    <p className="text-sm font-semibold">❌ Insufficient purse</p>
+                    <p className="text-xs text-white/80 mt-1">Need ₹{nextBidAmount} Cr, you have ₹{purseRemaining} Cr</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={hasNoBidsYet ? placeBaseBid : placeIncrementBid}
+                    className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-bold py-4 rounded-xl transition-colors flex items-center justify-center gap-2 text-base sm:text-lg shadow-lg min-h-[56px]"
+                  >
+                    <TrendingUp size={20} />
+                    {hasNoBidsYet ? `Bid ₹${nextBidAmount} Cr (Start)` : `Bid ₹${nextBidAmount} Cr (+₹${increment})`}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 text-center">
@@ -515,7 +538,7 @@ const ContestantDashboard = () => {
               </div>
             )}
 
-            {/* Chat & Activity - COMPACT */}
+            {/* Chat & Activity */}
             <div className="bg-white rounded-xl shadow">
               <div className="p-3 border-b border-gray-200">
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Live Feed</h2>
@@ -523,13 +546,12 @@ const ContestantDashboard = () => {
 
               <div className="h-[150px] sm:h-[200px] overflow-y-auto p-3 space-y-2">
                 {messages.map((msg, index) => (
-                  <div key={index} className={`${
-                    msg.type === 'system' ? 'bg-blue-50 border-l-2 border-blue-500' :
-                    msg.type === 'bid' ? 'bg-purple-50 border-l-2 border-purple-500' :
-                    msg.type === 'sold' ? 'bg-green-50 border-l-2 border-green-500' :
-                    msg.type === 'unsold' ? 'bg-red-50 border-l-2 border-red-500' :
-                    'bg-gray-50'
-                  } rounded-md p-2`}>
+                  <div key={index} className={`${msg.type === 'system' ? 'bg-blue-50 border-l-2 border-blue-500' :
+                      msg.type === 'bid' ? 'bg-purple-50 border-l-2 border-purple-500' :
+                        msg.type === 'sold' ? 'bg-green-50 border-l-2 border-green-500' :
+                          msg.type === 'unsold' ? 'bg-red-50 border-l-2 border-red-500' :
+                            'bg-gray-50'
+                    } rounded-md p-2`}>
                     {msg.username && (
                       <p className="font-semibold text-xs text-gray-900">{msg.username}</p>
                     )}
@@ -562,11 +584,10 @@ const ContestantDashboard = () => {
         </div>
       </div>
 
-      {/* Team Squad Modal - Mobile Responsive */}
+      {/* Team Squad Modal */}
       {selectedTeam && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] sm:max-w-3xl max-h-[95vh] overflow-hidden">
-            {/* Modal Header */}
             <div className={`${isMyTeam(selectedTeam) ? 'bg-gradient-to-r from-purple-600 to-pink-600' : 'bg-gradient-to-r from-blue-600 to-indigo-600'} text-white p-4`}>
               <div className="flex items-center justify-between">
                 <div className="flex-1 min-w-0">
@@ -596,7 +617,6 @@ const ContestantDashboard = () => {
                 </div>
               </div>
 
-              {/* Team Stats */}
               <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4">
                 <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2 text-center">
                   <p className="text-white/70 text-xs">Players</p>
@@ -615,7 +635,6 @@ const ContestantDashboard = () => {
               </div>
             </div>
 
-            {/* Modal Content */}
             <div className="p-3 sm:p-4 overflow-y-auto max-h-[calc(95vh-200px)] sm:max-h-[calc(85vh-200px)]">
               {showFormation && isMyTeam(selectedTeam) && selectedTeam.playingXI ? (
                 <PlayingXIFormation
@@ -660,7 +679,6 @@ const ContestantDashboard = () => {
               )}
             </div>
 
-            {/* Modal Footer */}
             <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
               <button
                 onClick={() => setSelectedTeam(null)}

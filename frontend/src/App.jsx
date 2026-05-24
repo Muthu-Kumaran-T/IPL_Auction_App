@@ -35,7 +35,7 @@ function App() {
   // Fetch user on app initialization
   useEffect(() => {
     fetchUser();
-  }, []);
+  }, [fetchUser]);
 
   // Show loading screen while checking authentication on initial load
   if (isLoading) {

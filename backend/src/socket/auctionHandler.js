@@ -34,7 +34,7 @@ module.exports = (io) => {
         });
 
       socket.emit('room-state', room);
-      
+
       // Also send teams update to all clients when someone joins
       io.to(roomId).emit('teams-updated', {
         teams: room.teams
@@ -109,7 +109,7 @@ module.exports = (io) => {
     socket.on('sell-player', async ({ roomId, playerId, soldPrice, teamId, teamName }) => {
       try {
         console.log('🎯 Sell player event received:', { roomId, playerId, soldPrice, teamId, teamName });
-        
+
         const room = await Room.findOne({ roomId });
         const player = await Player.findById(playerId);
 
@@ -147,23 +147,23 @@ module.exports = (io) => {
 
         const team = room.teams[teamIndex];
         console.log('📊 Before update - Team:', team.teamName, 'Purse:', team.purseRemaining, 'Players:', team.players.length);
-        
+
         // Initialize purseRemaining if not set (for old teams)
         if (team.purseRemaining === undefined || team.purseRemaining === null) {
           team.purseRemaining = room.rules.totalPurse;
           console.log('💰 Initialized purse to:', team.purseRemaining);
         }
-        
+
         // Deduct the sold price
         team.purseRemaining = parseFloat((team.purseRemaining - soldPrice).toFixed(2));
-        
+
         // Add player to team
         team.players.push(playerId);
-        
+
         console.log('📊 After update - Team:', team.teamName, 'Purse:', team.purseRemaining, 'Players:', team.players.length);
 
         room.currentPlayer = null;
-        
+
         // Use markModified to ensure Mongoose detects the changes
         room.markModified('teams');
         await room.save();

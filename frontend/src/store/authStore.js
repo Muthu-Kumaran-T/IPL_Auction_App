@@ -18,7 +18,8 @@ const useAuthStore = create((set) => ({
       console.log('Attempting registration with:', { ...userData, password: '***' });
       const response = await authAPI.register(userData);
       console.log('Registration response:', response.data);
-      const { token, user } = response.data;
+      const { token, user: rawUser } = response.data;
+      const user = { ...rawUser, id: (rawUser.id || rawUser._id)?.toString() };
       
       localStorage.setItem('token', token);
       set({
@@ -43,7 +44,8 @@ const useAuthStore = create((set) => ({
     set({ loading: true, error: null });
     try {
       const response = await authAPI.login(credentials);
-      const { token, user } = response.data;
+      const { token, user: rawUser } = response.data;
+      const user = { ...rawUser, id: (rawUser.id || rawUser._id)?.toString() };
       
       localStorage.setItem('token', token);
       set({
@@ -84,8 +86,16 @@ const useAuthStore = create((set) => ({
     set({ loading: true, isLoading: true });
     try {
       const response = await authAPI.getMe();
+      const rawUser = response.data.user;
+      // Normalize: ensure user.id is always a plain string
+      // (getMe may return a Mongoose doc where _id is ObjectId and id is virtual)
+      const user = {
+        ...rawUser,
+        id: (rawUser.id || rawUser._id)?.toString()
+      };
+      console.log('fetchUser: user restored:', user);
       set({
-        user: response.data.user,
+        user,
         loading: false,
         initialized: true,
         isLoading: false,

@@ -1,5 +1,5 @@
 // frontend/src/pages/AuctioneerDashboard.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Upload, Users, DollarSign, Play, X, LogOut, CheckCircle, Search, Eye } from 'lucide-react';
 import useAuthStore from '../store/authStore';
@@ -21,45 +21,29 @@ const AuctioneerDashboard = () => {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTeam, setSelectedTeam] = useState(null);
+  const [editingBasePrice, setEditingBasePrice] = useState(false);
+  const [newBasePrice, setNewBasePrice] = useState('');
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    if (isLoading) {
-      return;
-    }
-    
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    
-    loadRoomData();
-    connectSocket();
-
-    return () => {
-      socketService.disconnect();
-    };
-  }, [roomId, user, isLoading]);
-
-  const loadRoomData = async () => {
-    await fetchRoomDetails(roomId);
-    const teamsResult = await fetchTeams(roomId);
-    if (teamsResult.success) {
-      setTeams(teamsResult.teams);
-    }
-    loadPlayers();
-  };
-
-  const loadPlayers = async () => {
+  const loadPlayers = useCallback(async () => {
     try {
       const response = await playerAPI.getPlayers(roomId);
       setPlayers(response.data.players);
     } catch (error) {
       console.error('Error loading players:', error);
     }
-  };
+  }, [roomId]);
 
-  const connectSocket = () => {
+  const loadRoomData = useCallback(async () => {
+    await fetchRoomDetails(roomId);
+    const teamsResult = await fetchTeams(roomId);
+    if (teamsResult.success) {
+      setTeams(teamsResult.teams);
+    }
+    loadPlayers();
+  }, [roomId, fetchRoomDetails, fetchTeams, loadPlayers]);
+
+  const connectSocket = useCallback(() => {
     if (!user) return;
     
     socketService.connect();
@@ -100,17 +84,32 @@ const AuctioneerDashboard = () => {
 
     socketService.on('teams-updated', (data) => {
       console.log('🔄 Teams updated event received:', data);
-      console.log('📋 Updated team data:');
       if (data.teams) {
         data.teams.forEach(team => {
           console.log(`  ${team.teamName}: ₹${team.purseRemaining} Cr (${team.players?.length || 0} players)`);
         });
         setTeams(data.teams);
-      } else {
-        console.log('⚠️ No teams data in teams-updated event');
       }
     });
-  };
+  }, [user, roomId, loadRoomData, loadPlayers]);
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+    
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    loadRoomData();
+    connectSocket();
+
+    return () => {
+      socketService.disconnect();
+    };
+  }, [roomId, user, isLoading, navigate, loadRoomData, connectSocket]);
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -133,7 +132,28 @@ const AuctioneerDashboard = () => {
     setCurrentPlayer(player);
     setCurrentBid(player.basePrice);
     setHighestBidder(null);
+    setEditingBasePrice(false);
+    setNewBasePrice('');
     socketService.startBidding(roomId, player._id);
+  };
+
+  const updateBasePrice = () => {
+    const price = parseFloat(newBasePrice);
+    if (!price || price <= 0) {
+      alert('Please enter a valid base price');
+      return;
+    }
+    
+    setCurrentPlayer({ ...currentPlayer, basePrice: price });
+    setCurrentBid(price);
+    setEditingBasePrice(false);
+    setNewBasePrice('');
+    
+    socketService.socket?.emit('update-base-price', {
+      roomId,
+      playerId: currentPlayer._id,
+      newBasePrice: price
+    });
   };
 
   const sellPlayer = () => {
@@ -393,8 +413,43 @@ const AuctioneerDashboard = () => {
                   
                   <div className="grid grid-cols-2 gap-3 mb-3 sm:mb-4">
                     <div>
-                      <p className="text-white/70 text-xs sm:text-sm">Base Price</p>
-                      <p className="text-lg sm:text-xl font-bold">₹{currentPlayer.basePrice} Cr</p>
+                      <p className="text-white/70 text-xs sm:text-sm mb-2">Base Price</p>
+                      {editingBasePrice ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={newBasePrice}
+                            onChange={(e) => setNewBasePrice(e.target.value)}
+                            placeholder={currentPlayer.basePrice}
+                            className="flex-1 px-3 py-2 rounded-lg text-gray-900 font-semibold text-sm min-h-[40px]"
+                            step="0.5"
+                            autoFocus
+                          />
+                          <button
+                            onClick={updateBasePrice}
+                            className="bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg text-sm min-h-[40px]"
+                          >
+                            ✓
+                          </button>
+                          <button
+                            onClick={() => { setEditingBasePrice(false); setNewBasePrice(''); }}
+                            className="bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg text-sm min-h-[40px]"
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <p className="text-lg sm:text-xl font-bold">₹{currentPlayer.basePrice} Cr</p>
+                          <button
+                            onClick={() => { setEditingBasePrice(true); setNewBasePrice(currentPlayer.basePrice.toString()); }}
+                            className="p-1 hover:bg-white/20 rounded text-xs"
+                            title="Edit base price"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <p className="text-white/70 text-xs sm:text-sm">Current Bid</p>
@@ -403,11 +458,13 @@ const AuctioneerDashboard = () => {
                   </div>
 
                   {highestBidder && (
-                    <div className="bg-green-500/30 backdrop-blur-sm rounded-lg p-2 sm:p-3">
+                    <div className="bg-green-500/30 backdrop-blur-sm rounded-lg p-2 sm:p-3 mb-3">
                       <p className="text-xs sm:text-sm text-white/80">Highest Bidder</p>
                       <p className="text-base sm:text-lg font-bold">{highestBidder}</p>
                     </div>
                   )}
+
+
                 </div>
 
                 <div className="flex gap-2 sm:gap-3">
@@ -533,6 +590,17 @@ const AuctioneerDashboard = () => {
                               Start Bidding
                             </button>
                           )}
+
+                          {!player.status && (
+                            <button
+                              onClick={() => startBidding(player)}
+                              disabled={currentPlayer !== null}
+                              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center gap-1.5 sm:gap-2 transition-colors text-xs sm:text-sm min-h-[44px]"
+                            >
+                              <Play size={14} className="sm:w-4 sm:h-4" />
+                              Start Bidding
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -635,7 +703,7 @@ const AuctioneerDashboard = () => {
                 </div>
               ) : (
                 <div className="text-center py-8 sm:py-12">
-                  <Users size={40} className="mx-auto text-gray-300 mb-4 sm:mb-4" />
+                  <Users size={40} className="mx-auto text-gray-300 mb-4" />
                   <p className="text-gray-500 text-sm">No players in this squad yet</p>
                   <p className="text-xs sm:text-sm text-gray-400 mt-2">Players will appear here once they are bought</p>
                 </div>

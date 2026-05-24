@@ -105,9 +105,18 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    // Return same shape as login/register so user.id is always a plain string
     res.json({
       success: true,
-      user
+      user: {
+        id: user._id.toString(),
+        username: user.username,
+        email: user.email,
+        role: user.role
+      }
     });
   } catch (error) {
     res.status(500).json({ 
